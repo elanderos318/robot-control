@@ -1,11 +1,15 @@
 package main
 
 import (
-    "fmt"
-    // other imports
+	"fmt"
+	"net"
 )
 
 func main() {
-    fmt.Println("Robot control program starting...")
-    // Your program logic
+	conn, err := net.Dial("tcp", "192.168.4.2:8080")
+	if err != nil {
+		fmt.Println("Error connecting:", err)
+		return
+	}
+	defer conn.Close()
 }
