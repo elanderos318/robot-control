@@ -22,7 +22,6 @@ func main() {
 	
 	// Create a TCP connection
 	conn, err := net.Dial("tcp", robotAddr)
-	println(conn.RemoteAddr())
 	if err != nil {
 		log.Fatalf("Failed to connect to robot: %v", err)
 	}
@@ -48,20 +47,12 @@ func main() {
 	fmt.Println("Connected to robot successfully")
 	
 	// Create a command to move forward for 1 second
-	// cmd := RobotCommand{
-	// 	N:  2,         // Command 2 = Car control with time limit
-	// 	H:  "Go-001",  // Command serial number
-	// 	D1: 3,         // Direction 3 = Forward
-	// 	D2: 150,       // Speed = 150
-	// 	T:  10000,      // Time = 1000ms (1 second)
-	// }
-
 	cmd := RobotCommand{
-		N:  2,         // Command 2 = Car control with time limit
+		N:  3,         // Command 2 = Car control with time limit
 		H:  "Go-001",  // Command serial number
-		D1: 3,         // Direction 3 = Forward
+		D1: 2,         // Direction: 1: Left; 2: Right; 3 = Forward; 4 = Backwards
 		D2: 150,       // Speed = 150
-		// T:  10000,      // Time = 1000ms (1 second)
+		// T:  100000,    // Time = 1000ms (1 second)
 	}
 	
 	// Convert command to JSON
@@ -77,13 +68,19 @@ func main() {
 		log.Fatalf("Failed to send command: %v", err)
 	}
 	
-	// Read response
-	buffer := make([]byte, 4096)
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-	n, err := conn.Read(buffer)
-	if err != nil {
-		log.Printf("No response or error: %v", err)
-	} else {
+	// Keep the connection alive and continuously read responses
+	for {
+		buffer := make([]byte, 4096)
+		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		n, err := conn.Read(buffer)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				fmt.Println("Read timeout, continuing...")
+				continue
+			}
+			log.Printf("No response or error: %v", err)
+			break
+		}
 		fmt.Printf("Response from robot: %s\n", string(buffer[:n]))
 	}
 	
