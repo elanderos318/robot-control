@@ -1,87 +1,66 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"time"
 )
 
-func testUDPPort(port int) {
-	fmt.Printf("\n--- Testing UDP connection to port %d ---\n", port)
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("192.168.4.1:%d", port))
-	if err != nil {
-		fmt.Println("Error resolving address:", err)
-		return
-	}
-
-	conn, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		fmt.Println("Error connecting:", err)
-		return
-	}
-	defer conn.Close()
-
-	fmt.Println("Socket created, sending message")
-	
-	// Send a simple message
-	message := []byte("HELLO\n")
-	_, err = conn.Write(message)
-	if err != nil {
-		fmt.Println("Error sending data:", err)
-		return
-	}
-	fmt.Println("Data sent successfully")
-	
-	// Set a read deadline and try to receive response
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	buffer := make([]byte, 1024)
-	
-	n, _, err := conn.ReadFromUDP(buffer)
-	if err != nil {
-		fmt.Println("Error reading response:", err)
-	} else {
-		fmt.Printf("Received response: %s\n", buffer[:n])
-	}
-}
-
-func testTCPPort(port int) {
-	fmt.Printf("\n--- Testing TCP connection to port %d ---\n", port)
-	addr := fmt.Sprintf("192.168.4.1:%d", port)
-	
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-	if err != nil {
-		fmt.Println("Error connecting:", err)
-		return
-	}
-	defer conn.Close()
-
-	fmt.Println("Successfully connected!")
-	
-	// Send a simple message
-	_, err = conn.Write([]byte("HELLO\n"))
-	if err != nil {
-		fmt.Println("Error sending data:", err)
-		return
-	}
-	fmt.Println("Data sent successfully")
-	
-	// Try to read response
-	buffer := make([]byte, 1024)
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	n, err := conn.Read(buffer)
-	if err != nil {
-		fmt.Println("Error reading response:", err)
-	} else {
-		fmt.Printf("Received response: %s\n", buffer[:n])
-	}
+type RobotCommand struct {
+	N  int    `json:"N"`  // Command number
+	H  string `json:"H"`  // Command serial number
+	D1 int    `json:"D1"` // Direction (3 = forward)
+	D2 int    `json:"D2"` // Speed (0-255)
+	T  int    `json:"T"`  // Time in milliseconds
 }
 
 func main() {
-	// Test each port with both TCP and UDP
-	ports := []int{80, 81, 100}
+	// Robot address - using the IP and port from your Wireshark capture
+	robotAddr := "192.168.4.1:80"
 	
-	for _, port := range ports {
-		testTCPPort(port)
-		testUDPPort(port)
+	// Create a TCP connection
+	conn, err := net.Dial("tcp", robotAddr)
+	println(conn.RemoteAddr())
+	if err != nil {
+		log.Fatalf("Failed to connect to robot: %v", err)
 	}
+	defer conn.Close()
+	
+	fmt.Println("Connected to robot successfully")
+	
+	// Create a command to move forward for 1 second
+	cmd := RobotCommand{
+		N:  2,         // Command 2 = Car control with time limit
+		H:  "Go-001",  // Command serial number
+		D1: 3,         // Direction 3 = Forward
+		D2: 150,       // Speed = 150
+		T:  1000,      // Time = 1000ms (1 second)
+	}
+	
+	// Convert command to JSON
+	jsonData, err := json.Marshal(cmd)
+	if err != nil {
+		log.Fatalf("Failed to marshal JSON: %v", err)
+	}
+	
+	// Send the command
+	fmt.Printf("Sending command: %s\n", string(jsonData))
+	_, err = conn.Write(jsonData)
+	if err != nil {
+		log.Fatalf("Failed to send command: %v", err)
+	}
+	
+	// Read response
+	buffer := make([]byte, 4096)
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	n, err := conn.Read(buffer)
+	if err != nil {
+		log.Printf("No response or error: %v", err)
+	} else {
+		fmt.Printf("Response from robot: %s\n", string(buffer[:n]))
+	}
+	
+	fmt.Println("Command sent successfully")
 }
